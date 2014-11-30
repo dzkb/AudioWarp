@@ -7,15 +7,19 @@ Would you like to record only the best parts of the chat?
 
 Then AudioWarp is a tool for you. It records last few minutes of system audio (configurable) and after a hotkey (WIN+F3) saves the buffer to a single file.
 
-### Todo:
-    - recording from more than one audio device
-    - easier customization
-    - audio compression
+### Requirements
+- [pyAudio](http://people.csail.mit.edu/hubert/pyaudio/)
 
 ### Usage:
 Run the script. When you're ready to save, press WIN+F3. If you want to quit, press WIN+ESCAPE.
 
+### Todo:
+- recording from more than one audio device
+- easier customization
+- audio compression
 
+
+### License
 
 Copyright (c) 2014 Dzakub
 

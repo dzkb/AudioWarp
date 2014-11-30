@@ -23,7 +23,6 @@ THE SOFTWARE.
 import pyaudio
 import wave
 import os
-import pyHook
 import pythoncom
 import threading
 from ctypes import *
