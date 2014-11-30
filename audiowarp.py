@@ -23,7 +23,6 @@ THE SOFTWARE.
 import pyaudio
 import wave
 import os
-import pythoncom
 import threading
 from ctypes import *
 import ctypes.wintypes
@@ -157,7 +156,7 @@ try:
     msg = ctypes.wintypes.MSG()
     while user32.GetMessageA(ctypes.byref(msg), None, 0, 0) != 0:
         if msg.message == win32con.WM_HOTKEY:
-            print("Received hotkey event " + msg.wParam)
+            print("Received hotkey event " + str(msg.wParam))
             if msg.wParam == 1:
                 startMerging()
             elif msg.wParam == 2:
