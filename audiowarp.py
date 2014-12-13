@@ -29,59 +29,66 @@ import ctypes.wintypes
 import win32con
 import sys
 import time
+import pydub
 
 user32 = windll.user32
 
 p = pyaudio.PyAudio()
 
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 1
+RATE = 44100
+RECORD_SECONDS = 5
+TIME = 60 # total time
+BUFFERS = int(TIME/RECORD_SECONDS) # amount of 5-seconds temporary buffer files
+TMP_EXTENSION = ".tmp"
+THREAD_COUNT = 2 # one for OS audio, one for the microphone
+
+threads = dict()
 mergingLock = threading.Lock()
 merge_and_save = False
 shallQuit = False
+f_counters = dict() # contains buffer files counters
+'''
+    \/ - example f_counter
++--+--+--+--+--+
+| 1| 2| 3| 4| 5|
++--+--+--+--+--+
+'''
 
-def mergeAndSave(counter, buffers, channels, iformat, rate):
-    print("counter is " + str(counter))
-    print("counter - buffers is " + str(counter-buffers))
+def mergeAndSave(counter, buffers, channels, iformat, rate, thread_id):
+    print("[" + str(thread_id) + "] " + "counter is " + str(counter))
+    print("[" + str(thread_id) + "] " + "counter - buffers is " + str(counter-buffers))
 
     wavedata = []
     for i in range(buffers-counter):
-        print("(1) merging file " + str(i+counter))
-        if os.path.isfile(str(i+counter)):
-            f = wave.open(str(i+counter), "rb")
+        filename = str(i+counter) + TMP_EXTENSION
+        print("[" + str(thread_id) + "] " + "(1) merging file " + filename)
+        if os.path.isfile(filename):
+            f = wave.open(filename, "rb")
             wavedata.append(f.readframes(f.getnframes()))
             f.close()
     for i in range(counter):
-        print("(2) merging file " + str(i))
-        if os.path.isfile(str(i)):
-            f = wave.open(str(i), "rb")
+        filename = str(i) + TMP_EXTENSION
+        print("[" + str(thread_id) + "] " + " (2) merging file " + filename)
+        if os.path.isfile(filename):
+            f = wave.open(filename, "rb")
             wavedata.append(f.readframes(f.getnframes()))
             f.close()
 
-    # for i in range(buffers):
-    #     if (i + counter) < buffers:
-    #         if os.path.isfile(str(i+counter)):
-    #             f = wave.open(str(i+counter), "rb")
-    #             wavedata.append(f.readframes(f.getnframes()))
-    #             f.close()
-    #     else:
-    #         if os.path.isfile(str(i+counter)):
-
-    outName = time.strftime("%Y-%m-%d_%Hh%Mm%Ss") + ".wav"
+    # outName = time.strftime("%Y-%m-%d_%Hh%Mm%Ss") + ".wav"
+    outName = "out_" + str(thread_id)
 
     out = wave.open(outName, "wb")
     out.setnchannels(channels)
     out.setsampwidth(p.get_sample_size(iformat))
     out.setframerate(rate)
-    out.writeframes(b''.join(wavedata))    
+    out.writeframes(b''.join(wavedata))
+    out.close()
 
-def recordingThread():
+def recordingThread(thread_id):
     global merge_and_save
-    CHUNK = 1024
-    FORMAT = pyaudio.paInt16
-    CHANNELS = 1
-    RATE = 44100
-    RECORD_SECONDS = 5
-    TIME = 60 # total time
-    BUFFERS = int(TIME/RECORD_SECONDS) # amount of 5-seconds temporary buffer files
     f_counter = 0
 
     for k,v in enumerate(p.get_device_info_by_index(2).items()):
@@ -98,18 +105,18 @@ def recordingThread():
         frames = []
         j = 0
 
-        print ("Filling buffer #" + str(f_counter))
+        print ("[" + str(thread_id) + "] " + "Filling buffer #" + str(f_counter))
 
         while (j < int(RATE / CHUNK * RECORD_SECONDS)) and (not merge_and_save) :
             data = stream.read(CHUNK)
             frames.append(data)
             j += 1
 
-        print("* done recording")
+        print("[" + str(thread_id) + "] " + "* done recording")
 
         wave_filename = str(f_counter)
 
-        wf = wave.open(wave_filename, 'wb')
+        wf = wave.open(wave_filename + "_" + str(thread_id) + TMP_EXTENSION, 'wb')
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(p.get_sample_size(FORMAT))
         wf.setframerate(RATE)
@@ -122,28 +129,32 @@ def recordingThread():
             f_counter = 0
 
         if merge_and_save:
-            mergeAndSave(f_counter, BUFFERS, CHANNELS, FORMAT, RATE)
+            mergeAndSave(f_counter, BUFFERS, CHANNELS, FORMAT, RATE, thread_id)
             mergingLock.acquire()
             merge_and_save = False
             mergingLock.release()
 
-    print("terminating...")        
+    print("[" + str(thread_id) + "] " + "terminating...")
     stream.stop_stream()
     stream.close()
 
-
-t = threading.Thread(target=recordingThread, daemon=True)
-t.start()
+for i in range(THREAD_COUNT): # create one worker thread for every audio device
+    t = threading.Thread(target=recordingThread, daemon=True, kwargs={'thread_id': i})
+    t.start()
+    threads[i] = t
+    print ("Thread " + str(i) + " started")
 
 def stopThat() :
     global shallQuit
-    print("Requested stop")
+    print("[MAIN] Requested stop")
     shallQuit = True
-    t.join()
+    for k, t in threads.items():
+        t.join()
+        print("[MAIN] Joining thread " + str(k))
     sys.exit(0)
 
 def startMerging():
-    print("Requested save")
+    print("[MAIN] Requested save")
     global merge_and_save
     mergingLock.acquire()
     merge_and_save = True
