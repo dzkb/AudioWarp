@@ -93,16 +93,17 @@ def mergeAndSave(counters, thread_id): # counter -> counters (dict)
         out.writeframes(b''.join(wavedata))
         out.close()
 
+
     merge_and_save = False
     finishedMergingEvent.set()
 
-def recordingThread(thread_id):
+def recordingThread(thread_id, device_id):
     global merge_and_save
     global events
     global counters # should be safe
     f_counter = 0
 
-    for k,v in enumerate(p.get_device_info_by_index(2).items()):
+    for k,v in enumerate(p.get_device_info_by_index(device_id).items()):
         print (str(k) + ": " + str(v))
 
     stream = p.open(format=FORMAT,
@@ -110,7 +111,7 @@ def recordingThread(thread_id):
                     rate=RATE,
                     input=True,
                     frames_per_buffer=CHUNK,
-                    input_device_index=2)
+                    input_device_index=device_id)
 
     while not shallQuit:
         frames = []
@@ -153,8 +154,9 @@ def recordingThread(thread_id):
     stream.stop_stream()
     stream.close()
 
+devices = [2, 3] #debug
 for i in range(THREAD_COUNT): # create one worker thread for every audio device
-    t = threading.Thread(target=recordingThread, daemon=True, kwargs={'thread_id' : i})
+    t = threading.Thread(target=recordingThread, daemon=True, kwargs={'thread_id' : i, 'device_id' : devices[i]})
     e = threading.Event()
     t.start()
     threads[i] = t
