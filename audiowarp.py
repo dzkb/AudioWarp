@@ -29,7 +29,7 @@ import ctypes.wintypes
 import win32con
 import sys
 import time
-import pydub
+from pydub import *
 
 user32 = windll.user32
 
@@ -44,6 +44,7 @@ TIME = 60 # total time
 BUFFERS = int(TIME/RECORD_SECONDS) # amount of 5-seconds temporary buffer files
 TMP_EXTENSION = ".tmp"
 THREAD_COUNT = 2 # one for OS audio, one for the microphone
+# THREAD_COUNT = 1
 
 threads = dict()
 events = dict()
@@ -62,6 +63,7 @@ f_counters = dict() # contains buffer files counters
 '''
 
 def mergeAndSave(counters, thread_id): # counter -> counters (dict)
+    # thread_id is used only for debug notifications
     global merge_and_save
     for k, v in counters.items():
         print("[" + str(thread_id) + "/" + str(k) + "] " + "counter is " + str(v))
@@ -93,6 +95,15 @@ def mergeAndSave(counters, thread_id): # counter -> counters (dict)
         out.writeframes(b''.join(wavedata))
         out.close()
 
+    combinedTracks = AudioSegment.silent(duration=TIME*1000)
+
+    for i in range(THREAD_COUNT):
+        filename = "out_" + str(i)
+        if os.path.isfile(filename):
+            currentSegment = AudioSegment.from_wav(filename)
+            combinedTracks = combinedTracks.overlay(currentSegment)
+
+    combinedTracks.export(time.strftime("%Y-%m-%d_%Hh%Mm%Ss") + ".wav", format="wav")
 
     merge_and_save = False
     finishedMergingEvent.set()
@@ -170,6 +181,7 @@ def stopThat() :
     for k, t in threads.items():
         t.join()
         print("[MAIN] Joining thread " + str(k))
+    
     sys.exit(0)
 
 def startMerging(): # merging is moved to another thread
