@@ -9,6 +9,7 @@ Then AudioWarp is a tool for you. It records last few minutes of system audio (c
 
 ### Requirements
 - [pyAudio](http://people.csail.mit.edu/hubert/pyaudio/)
+- [pyDub](http://pydub.com/)
 
 ### Usage:
 Run the script. When you're ready to save, press WIN+F3. If you want to quit, press WIN+ESCAPE.
